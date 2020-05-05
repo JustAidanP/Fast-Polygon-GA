@@ -268,6 +268,9 @@ void calculateFitnesses(Population* _population, unsigned char* targetImagePixel
 	_population->matingPool = new std::vector<Member*>();
 
 	//------Creates a sample space for all of the members to use
+	//The 256 by 256 grid is split into an equal amount of squares in each axis, a ranodm point is then chosen in each square, this point is used as a sample point
+	//This algorithm ensures that the sample points are randomly distributed, there is never a sample point collision and that all the random points are spread out
+	//It is also most importantly a fast algorithm. The way in which the space is split is described at the top of the source above the definition of SAMPLE_SPACE_POWER
 	//Generates random points
 	unsigned char* sampleSpace = (unsigned char*)malloc(SAMPLE_SIZE * 2);
 	//Old algorithm - 5241 microseconds, new 191 microseconds
