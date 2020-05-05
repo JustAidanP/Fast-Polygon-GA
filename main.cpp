@@ -12,7 +12,7 @@
 #define max(a,b) ((a)>(b)?(a):(b))
 #define GENE_COUNT 512
 #ifndef POPULATION_SIZE
-	#define POPULATION_SIZE 15
+	#define POPULATION_SIZE 25
 #endif
 //The number of divisions that the sample space should be divided into, this is the power for 2, i.e. value of 2 is 2 ^ 2 divisions in each axis
 //E.g. a value of 2 would split the space into 4 square in each axis, making 16 squares in total
@@ -30,6 +30,16 @@ static int lastGeneration = -1;	//The generation to end on
 static bool frameMode = false;	//Stores whether the ga is being ran in frames mode
 static int frameIndex = 0;	//Stores the index into the frame buffer
 
+//------Fast random------
+//Stores the random seed
+static unsigned int g_seed;
+//Seeds the generator
+inline void fast_srand(int seed) { g_seed = seed; }
+//Computes a random number
+inline int fast_rand(void) {
+	g_seed = (214013 * g_seed + 2531011);
+	return (g_seed >> 16) & 0x7FFF;
+}
 //------Structures------
 struct Gene {
 	//The first 6 bytes of a gene are the positions, the position is treated as -128 to 127 for wraparound
@@ -66,23 +76,23 @@ void generateGenes(Member* _member) {
 		_member->genes[i] = new Gene();
 		int index = i * 10;
 		int newValue = 0;
-		_member->genes[i]->data[0] = rand() & 0xFF; //x0
-		_member->genes[i]->data[1] = rand() & 0xFF; //y0
+		_member->genes[i]->data[0] = fast_rand() & 0xFF; //x0
+		_member->genes[i]->data[1] = fast_rand() & 0xFF; //y0
 		//Ensures that all of the coordinates are within bounds
-		newValue = _member->genes[i]->data[0] + rand() % 20; //x1
+		newValue = _member->genes[i]->data[0] + fast_rand() % 20; //x1
 		_member->genes[i]->data[2] = ((newValue < 0) ? 256 - (newValue & 0xFF) : (newValue >= 256) ? 255 - newValue & 0xFF : newValue);
-		newValue = _member->genes[i]->data[1] + rand() % 20; //y1
+		newValue = _member->genes[i]->data[1] + fast_rand() % 20; //y1
 		_member->genes[i]->data[3] = ((newValue < 0) ? 256 - (newValue & 0xFF) : (newValue >= 256) ? 255 - newValue & 0xFF : newValue);
-		newValue = _member->genes[i]->data[0] + rand() % 20; //x2
+		newValue = _member->genes[i]->data[0] + fast_rand() % 20; //x2
 		_member->genes[i]->data[4] = ((newValue < 0) ? 256 - (newValue & 0xFF) : (newValue >= 256) ? 255 - newValue & 0xFF : newValue);
-		newValue = _member->genes[i]->data[1] + rand() % 20; //y3
+		newValue = _member->genes[i]->data[1] + fast_rand() % 20; //y3
 		_member->genes[i]->data[5] = ((newValue < 0) ? 256 - (newValue & 0xFF) : (newValue >= 256) ? 255 - newValue & 0xFF : newValue);
 
 		//Can use & rather than % as & is check across the whole range of values, not limitng any (if & was using 0b11111110 then the 'random' numbers would only be even)
-		_member->genes[i]->data[6] = rand() & 0xFF; //r
-		_member->genes[i]->data[7] = rand() & 0xFF; //g
-		_member->genes[i]->data[8] = rand() & 0xFF; //b
-		_member->genes[i]->data[9] = rand() & 0xFF; //a
+		_member->genes[i]->data[6] = fast_rand() & 0xFF; //r
+		_member->genes[i]->data[7] = fast_rand() & 0xFF; //g
+		_member->genes[i]->data[8] = fast_rand() & 0xFF; //b
+		_member->genes[i]->data[9] = fast_rand() & 0xFF; //a
 	}
 }
 //Creates a new population
@@ -103,7 +113,7 @@ Gene* mutate(Gene* _gene) {
 	for (int i = 0; i < 10; i++) {
 		int newValue = _gene->data[i];
 		//Mutates the value by 3 if it is a coord and by 20 if it is a colour
-		newValue += (i < 6) ? (rand() % 7) - 3 : (rand() % 41) - 20;
+		newValue += (i < 6) ? (fast_rand() % 7) - 3 : (fast_rand() % 41) - 20;
 		//Normalises the data to between 0 and 256
 		newGene->data[i] = ((newValue < 0) ? 256 - (newValue & 0xFF) : (newValue >= 256) ? 255 - newValue & 0xFF : newValue);
 	}
@@ -156,7 +166,7 @@ void performNaturalSelection(Population* oldPopulation, Population* newPopulatio
 	//Randomly fills the parents array with members, making sure that the first parent is always the best member
 	for (int i = 0; i < POPULATION_SIZE; i++) {
 		parents[i * 2] = oldPopulation->bestMember;
-		parents[i * 2 + 1] = (*oldPopulation->matingPool)[rand() % oldPopulation->matingPool->size()];
+		parents[i * 2 + 1] = (*oldPopulation->matingPool)[fast_rand() % oldPopulation->matingPool->size()];
 	}
 	//For each memebr in the population, genes are assigned
 	//It assigns the first gene for all members, then the second gene and so on
@@ -164,9 +174,9 @@ void performNaturalSelection(Population* oldPopulation, Population* newPopulatio
 		//Loops through every member
 		for (int j = 0; j < POPULATION_SIZE; j++) {
 			//Randomly chooses the gene from the two parents assigned to this new member
-			int memberIndex = (rand() % 2) + j;
+			int memberIndex = (fast_rand() % 2) + j;
 			//Randomly mutates the gene
-			if (rand() % 100 < 5) {//Mutate
+			if (fast_rand() % 100 < 5) {//Mutate
 				newPopulation->members[j].genes[i] = mutate(parents[memberIndex]->genes[i]);
 			}
 			else {
@@ -268,9 +278,6 @@ void calculateFitnesses(Population* _population, unsigned char* targetImagePixel
 	_population->matingPool = new std::vector<Member*>();
 
 	//------Creates a sample space for all of the members to use
-	//The 256 by 256 grid is split into an equal amount of squares in each axis, a ranodm point is then chosen in each square, this point is used as a sample point
-	//This algorithm ensures that the sample points are randomly distributed, there is never a sample point collision and that all the random points are spread out
-	//It is also most importantly a fast algorithm. The way in which the space is split is described at the top of the source above the definition of SAMPLE_SPACE_POWER
 	//Generates random points
 	unsigned char* sampleSpace = (unsigned char*)malloc(SAMPLE_SIZE * 2);
 	//Old algorithm - 5241 microseconds, new 191 microseconds
@@ -280,8 +287,8 @@ void calculateFitnesses(Population* _population, unsigned char* targetImagePixel
 		int i = k & ((1 << SAMPLE_SPACE_POWER) - 1);
 		int j = k >> SAMPLE_SPACE_POWER;
 		//Calculates the coordinates
-		int x = squareSize * i + (rand() & (squareSize - 1));
-		int y = squareSize * j + (rand() & (squareSize - 1));
+		int x = squareSize * i + (fast_rand() & (squareSize - 1));
+		int y = squareSize * j + (fast_rand() & (squareSize - 1));
 		sampleSpace[k << 1] = x;
 		sampleSpace[(k << 1) + 1] = y;
 	}
@@ -347,7 +354,7 @@ Population* runGeneration(Population* population, int genNumber, unsigned char* 
 			frameIndex++;
 		}
 	}
-	//Checks if the generation is the last generaton
+	////Checks if the generation is the last generaton
 	if (lastGeneration == genNumber) exportBestMember(population, (frameMode) ? ("frame_" + std::to_string(frameIndex - 1)) : "lastMember", genNumber);
 	//Generates a new population
 	Population* newPopulation = new Population();	
